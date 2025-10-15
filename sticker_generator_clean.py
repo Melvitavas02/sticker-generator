@@ -43,7 +43,8 @@ def generate_stickers():
         uploaded = files.upload()
         filename = list(uploaded.keys())[0]
     else:
-        filename = input("Enter Excel file path (.xlsx): ").strip()
+        filename = sys.stdin.readline().strip() or input("Enter Excel file path (.xlsx): ").strip()
+
 
     # Use openpyxl engine explicitly
     raw = pd.read_excel(filename, header=None, dtype=str, engine="openpyxl")
