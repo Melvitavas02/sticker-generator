@@ -24,6 +24,12 @@
     .flashes li { margin:4px 0; }
     .flash-toast { position:relative; transition:opacity .4s ease, transform .4s ease; }
     .flash-hidden { opacity:0; transform:translateY(-6px); pointer-events:none; }
+    #fileError {
+  color: #d10000;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
   </style>
 </head>
 <body>
@@ -40,9 +46,9 @@
       <div class="right">
   {% with messages = get_flashed_messages() %}
     {% if messages %}
-      <ul class="flashes">
+      <ul id="flashes" class="flashes">
         {% for msg in messages %}
-          <li style="color:darkred;margin-bottom:8px;">{{ msg }}</li>
+          <li class="flash-toast">{{ msg }}</li>
         {% endfor %}
       </ul>
     {% endif %}
@@ -50,38 +56,80 @@
 
         <h2>Upload Excel File</h2>
 
-        <form action="{{ url_for('generate') }}" method="post" enctype="multipart/form-data">
-          <label>Choose Excel (.xlsx) File</label>
-          <input type="file" name="excel_file" accept=".xlsx, .xls" required>
+       <form id="upload_form" action="{{ url_for('generate') }}" method="post" enctype="multipart/form-data">
+  <label>Choose Excel (.xlsx) File</label>
+  <!-- removed `required` so browser doesn't show its tooltip -->
+  <input type="file" name="excel_file" id="excel_file" accept=".xlsx,.xls" class="form-control">
+<p id="fileError" style="color:red; font-size:14px; margin-top:6px;"></p>
 
-          <label>Font</label>
-          <select name="font_choice">
-            <option value="1">Helvetica</option>
-            <option value="2">Times</option>
-            <option value="3">Courier</option>
-          </select>
 
-          <div class="checkboxes">
-            <label><input type="checkbox" name="include_logo" value="y"> Include MSG Logo</label><br>
-            <label><input type="checkbox" name="include_qr" value="y"> Include QR Code</label>
-          </div>
+  <label>Font</label>
+  <select name="font_choice">
+    <option value="1">Helvetica</option>
+    <option value="2">Times</option>
+    <option value="3">Courier</option>
+  </select>
 
-          <button type="submit">Generate PDF</button>
-        </form>
-
-      </div>
-    </div>
+  <div class="checkboxes">
+    <label><input type="checkbox" name="include_logo" value="y"> Include MSG Logo</label><br>
+    <label><input type="checkbox" name="include_qr" value="y"> Include QR Code</label>
   </div>
 
-  <script>
-    // auto-hide flash after 4 seconds
-    window.addEventListener('DOMContentLoaded', () => {
-      const el = document.getElementById('flashes');
-      if (!el) return;
-      setTimeout(() => {
-        el.classList.add('flash-hidden');
-      }, 4000);
-    });
-  </script>
+  <button type="submit">Generate PDF</button>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('upload_form');
+  const fileInput = document.getElementById('excel_file');
+
+  form.addEventListener('submit', (e) => {
+    // 1) file present?
+    if (!fileInput.files || fileInput.files.length === 0) {
+      e.preventDefault();
+      alert('Please choose an Excel file (.xlsx or .xls) first.');
+      fileInput.focus();
+      return;
+    }
+
+    // 2) check extension client-side (nice UX, server still validates)
+    const name = fileInput.files[0].name.toLowerCase();
+    const allowed = ['.xlsx', '.xls'];
+    if (!allowed.some(ext => name.endsWith(ext))) {
+      e.preventDefault();
+      alert('Invalid file type. Please upload an Excel file (.xlsx or .xls).');
+      fileInput.focus();
+      return;
+    }
+
+    // otherwise allow submit
+  });
+});
+</script>
+<script>
+const fileInput = document.getElementById('excel_file');
+const fileError = document.getElementById('fileError');
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if (!file) {
+    fileError.textContent = "";
+    return;
+  }
+
+  const allowedExtensions = ['.xlsx', '.xls'];
+  const fileName = file.name.toLowerCase();
+  const isValid = allowedExtensions.some(ext => fileName.endsWith(ext));
+
+  if (!isValid) {
+    fileError.textContent = "Invalid file type. Please upload an Excel file (.xlsx or .xls).";
+    fileInput.value = ""; // clear wrong file
+  } else {
+    fileError.textContent = ""; // clear message if valid
+  }
+});
+</script>
+
+
 </body>
 </html>
