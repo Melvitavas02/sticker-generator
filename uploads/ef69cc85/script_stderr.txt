@@ -1,0 +1,4 @@
+  File "C:\melvita\flask-ui-project\sticker_generator_clean.py", line 240
+    if logo_img:
+                ^
+IndentationError: unindent does not match any outer indentation level

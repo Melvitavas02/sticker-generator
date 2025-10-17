@@ -111,7 +111,7 @@ def generate_stickers():
 
     BASE_LABEL_W, BASE_LABEL_H = 58 * mm, 39 * mm
     COMPACT_LABEL_H = 37 * mm
-    PAD = 0.5 * mm
+    PAD = 2 * mm
     RIGHT_MARGIN = 3 * mm
     SPACING = 1.15
     output_pdf = "stickers_msg_final.pdf"
@@ -211,21 +211,19 @@ def generate_stickers():
         if cert.strip(): footer_fixed.append(f"CERTIFICATE NO: {cert}".strip())
 
         available_width = BASE_LABEL_W - 2 * PAD - 15
-        min_size, max_size = 2.0, 7.0
+        min_size, max_size = 2.0, 5.5
         chosen_font_size = min_size
         for font_size in [x / 10 for x in range(int(max_size * 10), int(min_size * 10) - 1, -1)]:
             wrapped_desc = wrap_text(desc, FONT, font_size, available_width)
             wrapped_remarks = wrap_text(f"Remarks: {remarks}", FONT, font_size, available_width) if remarks.strip() else []
             total_height = ((len(header_lines) + len(wrapped_desc) + len(footer_fixed) + len(wrapped_remarks)) * font_size * SPACING)
-            if total_height <= LABEL_H - 0.3 * mm:
+            if total_height <= LABEL_H - 6 * mm:
                 chosen_font_size = font_size
                 break
 
         font_size = chosen_font_size
         c.setFont(FONT, font_size)
         y = LABEL_H - PAD - font_size
-        y -= font_size * 0.1
-
 
         for line in header_lines:
             c.drawString(PAD, y, line)
@@ -239,7 +237,7 @@ def generate_stickers():
             except Exception:
                 pass
 
-        y = min(y, LABEL_H - 3 * mm)
+        y = min(y, LABEL_H - 7 * mm - 4 * mm)
         for line in wrap_text(desc, FONT, font_size, available_width):
             c.drawString(PAD, y, line)
             y -= font_size * SPACING
