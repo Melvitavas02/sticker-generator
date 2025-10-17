@@ -1,0 +1,4 @@
+
+[notice] A new release of pip is available: 25.0.1 -> 25.2
+[notice] To update, run: python.exe -m pip install --upgrade pip
+❌ Header row not found (no 'Description' found).

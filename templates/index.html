@@ -5,39 +5,54 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Sticker Generator</title>
   <style>
-    /* Paste your current architect CSS (or use the earlier version I gave) */
     body { margin:0; font-family:Segoe UI, Arial, sans-serif; background:#f7f9fc; color:#222; }
-    .container{display:flex;justify-content:center;align-items:center;height:100vh}
-    .card{display:flex;background:#fff;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,.1);overflow:hidden;max-width:900px;width:90%}
+    .container{display:flex;justify-content:center;align-items:center;min-height:100vh;padding:40px}
+    .card{display:flex;background:#fff;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,.08);overflow:hidden;max-width:980px;width:100%}
     .left{flex:1;background:linear-gradient(135deg,#004aad,#007bff);color:#fff;padding:40px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
     .left img{width:120px;margin-bottom:20px;border-radius:10px;background:#fff;padding:10px}
     .left h1{font-size:26px;margin-bottom:10px}
     .left p{font-size:15px;line-height:1.6;opacity:.95}
-    .right{flex:1.1;padding:40px}
+    .right{flex:1.05;padding:36px}
     .right h2{margin-bottom:20px;font-size:22px;color:#004aad}
-    input[type=file], select { width:100%; padding:8px; margin:8px 0 16px; border:1px solid #ccc; border-radius:6px; }
+    input[type=file], select { width:100%; padding:10px; margin:8px 0 16px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box }
     .checkboxes{ margin-bottom:16px }
-    button{background:#007bff;color:#fff;border:none;padding:10px 18px;border-radius:6px;cursor:pointer}
+    button{background:#007bff;color:#fff;border:none;padding:10px 18px;border-radius:8px;cursor:pointer}
     button:hover{background:#005ecb}
+
+    /* flash message */
+    .flashes { list-style:none; padding:10px 12px; margin:0 0 18px 0; border-radius:8px; background: #fff0f0; border:1px solid #f5c6c6; color:#b30000; }
+    .flashes li { margin:4px 0; }
+    .flash-toast { position:relative; transition:opacity .4s ease, transform .4s ease; }
+    .flash-hidden { opacity:0; transform:translateY(-6px); pointer-events:none; }
   </style>
 </head>
 <body>
+
   <div class="container">
     <div class="card">
+
       <div class="left">
-        <!-- Replace with your logo or keep MSG logo -->
         <img src="https://www.msgoilfield.com/logo.png" alt="Logo">
         <h1>Sticker Generator</h1>
         <p>Generate printable PDF stickers easily from your Excel file. Choose font, add QR code, and download with a single click.</p>
       </div>
 
       <div class="right">
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <ul class="flashes">
+        {% for msg in messages %}
+          <li style="color:darkred;margin-bottom:8px;">{{ msg }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
         <h2>Upload Excel File</h2>
 
-        <!-- Important: form action uses Flask route url_for('generate') -->
         <form action="{{ url_for('generate') }}" method="post" enctype="multipart/form-data">
           <label>Choose Excel (.xlsx) File</label>
-          <input type="file" name="excel_file" accept=".xlsx" required>
+          <input type="file" name="excel_file" accept=".xlsx, .xls" required>
 
           <label>Font</label>
           <select name="font_choice">
@@ -57,5 +72,16 @@
       </div>
     </div>
   </div>
+
+  <script>
+    // auto-hide flash after 4 seconds
+    window.addEventListener('DOMContentLoaded', () => {
+      const el = document.getElementById('flashes');
+      if (!el) return;
+      setTimeout(() => {
+        el.classList.add('flash-hidden');
+      }, 4000);
+    });
+  </script>
 </body>
 </html>

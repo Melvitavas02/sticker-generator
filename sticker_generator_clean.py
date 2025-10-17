@@ -1,5 +1,5 @@
 # sticker_generator_clean.py
-# Cleaned Sticker Generator (keeps original behavior)
+# Cleaned Sticker Generator (Final Updated Version)
 import sys
 import subprocess
 import importlib
@@ -13,31 +13,24 @@ for pkg in required:
         print(f"Installing missing package: {pkg}")
         subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
 
-# Imports
-import io
-import re
-import requests
-import pandas as pd
-import qrcode
+import io, re, requests, pandas as pd, qrcode
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
 
-# Detect Colab
 try:
     from google.colab import files
     COLAB = True
 except Exception:
     COLAB = False
 
+
 def generate_stickers():
-    # Font selection
     fonts = {"1": "Helvetica-Bold", "2": "Times-Bold", "3": "Courier-Bold"}
     choice = input("Select font (1=Helvetica, 2=Times, 3=Courier): ").strip()
     FONT = fonts.get(choice, "Helvetica-Bold")
 
-    # Load Excel
     if COLAB:
         print("Upload Excel file:")
         uploaded = files.upload()
@@ -45,11 +38,8 @@ def generate_stickers():
     else:
         filename = sys.stdin.readline().strip() or input("Enter Excel file path (.xlsx): ").strip()
 
-
-    # Use openpyxl engine explicitly
     raw = pd.read_excel(filename, header=None, dtype=str, engine="openpyxl")
 
-    # Detect header row automatically
     header_row = None
     for i, row in raw.iterrows():
         line = " ".join(str(x).lower() for x in row.tolist())
@@ -64,12 +54,14 @@ def generate_stickers():
         return " ".join(vals)
 
     company, po_number = "", ""
-
     for i in range(header_row):
         text = safe_join(raw.iloc[i].tolist())
         if not text:
             continue
         m1 = re.search(r'(client|company)\s*[:\-]\s*(.+)', text, re.I)
+        if not m1 and len(text.split()) > 2 and "po" not in text.lower():
+            company = text.strip()
+
         m2 = re.search(r'PO\s*Number\s*[:\-]\s*([A-Za-z0-9\-_\/]+)', text, re.I)
         if m1:
             company = m1.group(2).strip()
@@ -78,12 +70,22 @@ def generate_stickers():
 
     df = pd.read_excel(filename, header=header_row, dtype=str, engine="openpyxl").fillna("")
     df.columns = [c.strip().lower() for c in df.columns]
+    # DEBUG (temporary): show normalized columns and a sample row
+    print("DEBUG columns:", df.columns.tolist())
+    if len(df) > 0:
+        print("DEBUG row0 sample keys:", list(df.iloc[0].to_dict().keys()))
+        print("DEBUG row0 sample:", dict(df.iloc[0]))
+
+
+    def _all_blank(row):
+        return all(str(v).strip() == "" for v in row.values)
+
+    df = df.loc[~df.apply(_all_blank, axis=1)].reset_index(drop=True)
 
     print(f"\n✅ Header row: {header_row+1}")
     print(f"✅ Company detected: {company}")
-    print(f"✅ PO Number detected: {po_number}\n")
+    print(f"✅ PO Number detected (header): {po_number}\n")
 
-    # Logo & QR setup
     add_logo = input("Include MSG logo? (y/n): ").strip().lower() == "y"
     logo_img = None
     if add_logo:
@@ -107,7 +109,6 @@ def generate_stickers():
         qr_img = ImageReader(qr_bytes)
         print("✅ QR code generated.")
 
-    # Layout constants
     BASE_LABEL_W, BASE_LABEL_H = 58 * mm, 39 * mm
     COMPACT_LABEL_H = 37 * mm
     PAD = 2 * mm
@@ -131,9 +132,7 @@ def generate_stickers():
     def wrap_text(text, font, size, width):
         if not text:
             return []
-        words = text.split()
-        lines = []
-        line = ""
+        words, lines, line = text.split(), [], ""
         for w in words:
             test = (line + " " + w).strip()
             if stringWidth(test, font, size) <= width:
@@ -146,46 +145,73 @@ def generate_stickers():
             lines.append(line)
         return lines
 
-    # Generate Stickers
+    def get_field_from_row(row, key):
+        if not key:
+            return ""
+        keys = key if isinstance(key, (list, tuple)) else [key]
+        norm_keys = []
+        for k in keys:
+            if not k: continue
+            kk = k.strip().lower()
+            norm_keys.extend([
+                kk,
+                kk.replace("number", "no"),
+                kk.replace("no", "number"),
+                kk.replace("qty", "quantity"),
+                kk.replace("quantity", "qty")
+            ])
+        for nk in norm_keys:
+            if nk in row.index:
+                val = row.get(nk, "")
+                if pd.isna(val): continue
+                s = str(val).strip()
+                if s: return s
+        return ""
+
+    def fmt_qty(q):
+        q = str(q).strip()
+        if not q: return ""
+        try:
+            q_clean = q.replace(",", "")
+            n = float(q_clean)
+            return str(int(n)) if n.is_integer() else str(n).rstrip("0").rstrip(".")
+        except Exception:
+            return q
+
     c = canvas.Canvas(output_pdf, pagesize=(BASE_LABEL_W, BASE_LABEL_H))
 
     for _, row in df.iterrows():
-        get = lambda x: str(row.get(x, "")).strip()
-
-        item_no = get("sl no") or get("item no") or ""
-        dpe_code = get("dpe item code") or get("dpe code") or extract_dpe_code(get("description"))
-        desc = clean_description(get("description"))
-        po_qty = get("po qty") or ""
-        uom = get("uom") or ""
-        heat = get("heat number") or ""
-        cert = get("certificate number") or ""
-        make = get("make") or ""
-        remarks = get("remarks") or ""
+        item_no = get_field_from_row(row, ["sl no", "item no", "item number"]) or ""
+        dpe_code = get_field_from_row(row, ["dpe item code", "dpe code"]) or extract_dpe_code(get_field_from_row(row, "description"))
+        desc = clean_description(get_field_from_row(row, ["description", "item description","item name", "material"]))
+        if not desc.strip():
+            continue
+        per_row_po = get_field_from_row(row, ["po number", "po no", "po"]) or ""
+        po_qty = fmt_qty(get_field_from_row(row, ["po qty","poqty","po quantity", "qty","quantity"])) or ""
+        uom = get_field_from_row(row, ["uom", "unit"]) or ""
+        heat = get_field_from_row(row, ["heat number", "heat no", "heat"]) or ""
+        cert = get_field_from_row(row, ["certificate number", "certificate no", "cert"]) or ""
+        make = get_field_from_row(row, ["make", "manufacturer"]) or ""
+        remarks = get_field_from_row(row, ["remarks", "remark"]) or ""
 
         LABEL_H = COMPACT_LABEL_H if not remarks.strip() else BASE_LABEL_H
         c.setPageSize((BASE_LABEL_W, LABEL_H))
 
         header_lines = []
-        if company:
-            header_lines.append(company)
-        if po_number:
-            header_lines.append(f"PO Number: {po_number}")
-        if item_no:
-            header_lines.append(f"ITEM NO: {item_no}")
-        if dpe_code:
-            header_lines.append(f"DPE ITEM CODE: {dpe_code}")
+        if company: header_lines.append(company)
+        chosen_po = per_row_po if per_row_po else po_number
+        if chosen_po: header_lines.append(f"PO Number: {chosen_po}")
+        if item_no: header_lines.append(f"ITEM NO: {item_no}")
+        if dpe_code: header_lines.append(f"DPE ITEM CODE: {dpe_code}")
 
-        footer_fixed = [f"PO QTY: {po_qty} {uom}".strip()]
-        if heat.strip():
-            footer_fixed.append(f"HEAT NUMBER: {heat}".strip())
+        po_qty_full = f"PO QTY: {po_qty} {uom}".strip() if po_qty or uom else "PO QTY: "
+        footer_fixed = [po_qty_full]
+        if heat.strip(): footer_fixed.append(f"HEAT NUMBER: {heat}".strip())
         footer_fixed.append(f"MAKE: {make}".strip() if make.strip() else "MAKE: ")
-        if cert.strip():
-            footer_fixed.append(f"CERTIFICATE NO: {cert}".strip())
+        if cert.strip(): footer_fixed.append(f"CERTIFICATE NO: {cert}".strip())
 
         available_width = BASE_LABEL_W - 2 * PAD - 15
         min_size, max_size = 2.0, 5.5
-
-        # auto-fit font size
         chosen_font_size = min_size
         for font_size in [x / 10 for x in range(int(max_size * 10), int(min_size * 10) - 1, -1)]:
             wrapped_desc = wrap_text(desc, FONT, font_size, available_width)
@@ -196,8 +222,6 @@ def generate_stickers():
                 break
 
         font_size = chosen_font_size
-
-        # Draw text
         c.setFont(FONT, font_size)
         y = LABEL_H - PAD - font_size
 
@@ -209,8 +233,7 @@ def generate_stickers():
         if logo_img:
             try:
                 c.drawImage(logo_img, BASE_LABEL_W - 12 * mm - RIGHT_MARGIN,
-                            LABEL_H - 7 * mm - 1.5 * mm, width=12 * mm,
-                            height=7 * mm, mask="auto")
+                            LABEL_H - 7 * mm - 1.5 * mm, width=12 * mm, height=7 * mm, mask="auto")
             except Exception:
                 pass
 
@@ -255,6 +278,7 @@ def generate_stickers():
             print("⚠ Unable to auto-download in this environment.")
     else:
         print("Saved to:", output_pdf)
+
 
 if __name__ == "__main__":
     generate_stickers()
